@@ -75,7 +75,10 @@ pub struct fuse_file_lock {
 }
 
 pub mod consts {
-    // Bitmasks for fuse_setattr_in.valid
+    // CUSE init request/reply flags
+    pub const CUSE_UNRESTRICTED_IOCTL: u32  = 1 << 0;
+
+    //Bitmasks for fuse_setattr_in.valid
     pub const FATTR_MODE: u32               = 1 << 0;
     pub const FATTR_UID: u32                = 1 << 1;
     pub const FATTR_GID: u32                = 1 << 2;
@@ -115,12 +118,21 @@ pub mod consts {
 
     // The read buffer is required to be at least 8k, but may be much larger
     pub const FUSE_MIN_READ_BUFFER: usize   = 8192;
+
+    // IOCTL flags
+   pub const FUSE_IOCTL_COMPAT: u32        = 1 << 0;   // since ABI 7.11: 32bit compat ioctl on 64bit machine
+   pub const FUSE_IOCTL_UNRESTRICTED: u32  = 1 << 1;   // since ABI 7.11: not restricted to well-formed ioctls, retry allowed
+   pub const FUSE_IOCTL_RETRY: u32         = 1 << 2;   // since ABI 7.11: retry with new iovecs
+   pub const FUSE_IOCTL_32BIT: u32         = 1 << 3;   // since ABI 7.16: 32bit ioctl
+   pub const FUSE_IOCTL_DIR: u32           = 1 << 4;   // since ABI 7.18: is a directory
+   pub const FUSE_IOCTL_MAX_IOV: u32       = 256;      // since ABI 7.11: maximum of in_iovecs + out_iovecs
 }
 
 #[repr(C)]
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum fuse_opcode {
+    CUSE_INIT = 4096,
     FUSE_LOOKUP = 1,
     FUSE_FORGET = 2,                                    // no reply
     FUSE_GETATTR = 3,
@@ -211,6 +223,7 @@ impl fuse_opcode {
             62 => Some(fuse_opcode::FUSE_GETXTIMES),
             #[cfg(target_os = "macos")]
             63 => Some(fuse_opcode::FUSE_EXCHANGE),
+            4096 => Some(fuse_opcode::CUSE_INIT),
             _ => None,
         }
     }
@@ -483,6 +496,72 @@ pub struct fuse_bmap_in {
 #[derive(Debug)]
 pub struct fuse_bmap_out {
     pub block: u64,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct fuse_ioctl_in {                              // since ABI 7.11
+    pub fh: u64,
+    pub flags: u32,
+    pub cmd: u32,
+    pub arg: u64,
+    pub in_size: u32,
+    pub out_size: u32,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct fuse_ioctl_iovec {                           // since ABI 7.16
+    pub base: u64,
+    pub len: u64,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct fuse_ioctl_out {                             // since ABI 7.11
+    pub result: i32,
+    pub flags: u32,
+    pub in_iovs: u32,
+    pub out_iovs: u32,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct fuse_poll_in {                               // since ABI 7.11
+    pub fh: u64,
+    pub kh: u64,
+    pub flags: u32,
+    pub padding: u32,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct fuse_poll_out {                              // since ABI 7.11
+    pub revents: u32,
+    pub padding: u32,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct cuse_init_in {                               // since ABI 7.12
+    pub major: u32,
+    pub minor: u32,
+    pub unused: u32,
+    pub flags: u32,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct cuse_init_out {                              // since ABI 7.12
+    pub major: u32,
+    pub minor: u32,
+    pub unused: u32,
+    pub flags: u32,
+    pub max_read: u32,
+    pub max_write: u32,
+    pub dev_major: u32,                                 // chardev major
+    pub dev_minor: u32,                                 // chardev minor
+    pub spare: [u32; 10],
 }
 
 #[repr(C)]

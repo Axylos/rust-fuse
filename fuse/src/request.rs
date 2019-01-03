@@ -379,6 +379,26 @@ impl<'a> Request<'a> {
                 debug!("SETLK({}) ino {:#018x}, fh {}, lock owner {}", self.header.unique, self.header.nodeid, arg.fh, arg.owner);
                 se.filesystem.setlk(self, self.header.nodeid, arg.fh, arg.owner, arg.lk.start, arg.lk.end, arg.lk.typ, arg.lk.pid, sleep, self.reply());
             }
+            FUSE_IOCTL => {
+                let arg: &fuse_ioctl_in = data.fetch();
+                debug!("IOCTL({}) ino {:#018x}, fh {}, flags {}, cmd {}, in_size {}, out_size {}", self.header.unique, self.header.nodeid, arg.fh, arg.flags, arg.cmd, arg.in_size, arg.out_size);
+                let in_data = if arg.in_size > 0 {
+                    Some(data.fetch_data())
+                } else {
+                    None
+                };
+                if (arg.flags & FUSE_IOCTL_UNRESTRICTED) > 0 {
+                    self.reply::<ReplyEmpty>().error(ENOSYS);
+                } else {
+                    se.filesystem.ioctl(self, self.header.nodeid, arg.fh, arg.flags, arg.cmd, in_data, arg.out_size, self.reply());
+                }
+            }
+            FUSE_POLL => {
+                let arg: &fuse_poll_in = data.fetch();
+                //debug!("IOCTL({}) ino {:#018x}, fh {}, flags {}, in_size {}, out_size {}", self.header.unique, self.header.nodeid, arg.fh, arg.in_size, arg.out_size);
+                //se.filesystem.poll(self, self.header.nodeid, arg.fh, arg.flags, arg.in_size, arg.out_size, self.reply());
+                self.reply::<ReplyEmpty>().error(ENOSYS);
+            }
             FUSE_BMAP => {
                 let arg: &fuse_bmap_in = data.fetch();
                 debug!("BMAP({}) ino {:#018x}, blocksize {}, ids {}", self.header.unique, self.header.nodeid, arg.blocksize, arg.block);
@@ -403,6 +423,10 @@ impl<'a> Request<'a> {
                 debug!("GETXTIMES({}) ino {:#018x}", self.header.unique, self.header.nodeid);
                 se.filesystem.getxtimes(self, self.header.nodeid, self.reply());
             }
+            CUSE_INIT => {
+                let arg: &cuse_init_in = data.fetch();
+                self.reply::<ReplyEmpty>().error(ENOSYS);
+            }            
         }
     }
 
